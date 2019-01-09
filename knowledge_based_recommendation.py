@@ -25,7 +25,7 @@ del reviews['Unnamed: 0']
 # 4) If movies are tied in their average rating and number of ratings,
 # the ranking is determined by the movie that is the most recent rating.
 
-def popular_recommendations(user_id, n_top):
+def popular_recommendations(user_id, n_top, years, genres):
     '''
     INPUT:
     user_id - the user_id of the individual you are making recommendations for
@@ -33,6 +33,9 @@ def popular_recommendations(user_id, n_top):
     OUTPUT:
     top_movies - a list of the n_top recommended movies by movie title in order best to worst
     '''
+
+    list_df_year = []
+    list_df_genre = []
 
     rating_df = reviews.groupby('movie_id')['rating'].agg(['mean', 'size'])
     latest_review_df = reviews.groupby('movie_id')['date'].agg(['max'])
@@ -42,32 +45,47 @@ def popular_recommendations(user_id, n_top):
                     inplace=True)
     pop_movies.sort_values(by=['mean', 'size', 'max'],
                                 ascending=[False,False,False], inplace=True)
-    top_movies_idx = pop_movies.index[:n_top]
+    # top_movies_idx = pop_movies.index[:n_top]
+    top_movies_idx = pop_movies.index
 
+    # Filtering for the years
+    for year in years:
+        list_df_year.append(movies[movies['date'] == int(year)])
+    df_year = pd.concat(list_df_year)
+    df_year.drop_duplicates(inplace=True)
+
+    # Filtering for the genre
+    for genre in genres:
+        list_df_genre.append(movies[movies[genre] == 1])
+    df_genre = pd.concat(list_df_genre)
+    df_genre.drop_duplicates(inplace=True)
+
+    # merging dataframes using index as index here is movie_ids
+    # when genres or years is sent in empty, the following code handles it
+    if (df_year.shape[0] > 0) & (df_genre.shape[0] > 0):
+        df_movie_year_genre = pd.merge(df_year, df_genre, right_index=True,
+                                       left_index=True)
+    elif (df_year.shape[0] == 0):
+        df_movie_year_genre = df_genre
+
+    elif (df_genre.shape[0] == 0):
+        df_movie_year_genre = df_year
+
+    else:
+        return np.nan
+
+    # making a list of top movies as per the criteria defined above
     top_movies = []
     for idx in top_movies_idx:
-        temp = movies.loc[movies['movie_id'] == idx,'movie'].reset_index(drop = True)
-        top_movies.append(temp[0])
+        temp = df_movie_year_genre.loc[df_movie_year_genre['movie_id_x'] ==
+                                    idx,'movie_x'].reset_index(drop = True)
+        if(temp.shape[0] > 0):
+            top_movies.append(temp[0])
 
-    return top_movies  # a list of the n_top movies as recommended
+    return top_movies[:n_top]  # a list of the n_top movies as recommended
 
-
-recs_20_for_1 = popular_recommendations(1, 20)
-recs_5_for_53968 = popular_recommendations(53968, 5)
-recs_100_for_70000 = popular_recommendations(70000, 100)
-recs_35_for_43 = popular_recommendations(43, 35)
-
-ranked_movies = t.create_ranked_df(movies, reviews) # only run this once - it is not fast
-
-# check 1
-assert t.popular_recommendations('1', 20, ranked_movies) == recs_20_for_1,  "The first check failed..."
-# check 2
-assert t.popular_recommendations('53968', 5, ranked_movies) == recs_5_for_53968,  "The second check failed..."
-# check 3
-assert t.popular_recommendations('70000', 100, ranked_movies) == recs_100_for_70000,  "The third check failed..."
-# check 4
-assert t.popular_recommendations('43', 35, ranked_movies) == recs_35_for_43,  "The fourth check failed..."
-
-print("If you got here, looks like you are good to go!  Nice job!")
+popular_recommendations(1, 20,years=['2015', '2016', '2017','2018'], genres=['History'])
 
 
+popular_recommendations(1, 20,years=['2015', '2016', '2017',
+                                    '2018'], genres=['History'])
