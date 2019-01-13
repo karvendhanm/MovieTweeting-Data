@@ -84,8 +84,14 @@ def popular_recommendations(user_id, n_top, years, genres):
 
     return top_movies[:n_top]  # a list of the n_top movies as recommended
 
-popular_recommendations(1, 20,years=['2015', '2016', '2017','2018'], genres=['History'])
+popular_recommendations(1, 20, years=['2015', '2016', '2017','2018'],
+                        genres=['History'])
 
 
-popular_recommendations(1, 20,years=['2015', '2016', '2017',
-                                    '2018'], genres=['History'])
+
+
+
+
+
+
+
