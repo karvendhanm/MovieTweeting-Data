@@ -6,15 +6,15 @@ from scipy import sparse
 data_dir = 'C:/Users/John/PycharmProjects/MovieTweeting-Data/data/'
 
 # Read in the datasets
-# movies = pd.read_csv(data_dir + 'movies_clean.csv')
-# reviews = pd.read_csv(data_dir + 'reviews_clean.csv')
-#
-# del movies['Unnamed: 0']
-# del reviews['Unnamed: 0']
+movies = pd.read_csv(data_dir + 'movies_clean.csv')
+reviews = pd.read_csv(data_dir + 'reviews_clean.csv')
+
+del movies['Unnamed: 0']
+del reviews['Unnamed: 0']
 
 # Create user-by-item matrix
-# user_items = reviews[['user_id', 'movie_id', 'rating', 'timestamp']]
-# user_by_movie = user_items.groupby(['user_id', 'movie_id'])['rating'].max().unstack()
+user_items = reviews[['user_id', 'movie_id', 'rating', 'timestamp']]
+user_by_movie = user_items.groupby(['user_id', 'movie_id'])['rating'].max().unstack()
 
 
 # Create data subset
@@ -104,10 +104,42 @@ user_mat, movie_mat = FunkSVD(ratings_mat, latent_features=4, learning_rate=0.00
 print(np.dot(user_mat, movie_mat))
 print(ratings_mat)
 
+# Here we are placing a nan into our original subset matrix
+ratings_mat[0, 0] = np.nan
+ratings_mat
 
+# run SVD on the matrix with the missing value
+user_mat, movie_mat = FunkSVD(ratings_mat, latent_features=4, learning_rate=0.005, iters=250)
 
+preds = np.dot(user_mat, movie_mat)
+print("The predicted value for the missing rating is {}:".format(preds[0,0]))
 
+# Setting up a matrix of the first 1000 users with movie ratings
+first_1000_users = np.matrix(user_by_movie.head(1000))
 
+# perform funkSVD on the matrix of the top 1000 users
+user_mat, movie_mat = FunkSVD(first_1000_users, latent_features=4, learning_rate=0.005, iters=20)
+
+preds = np.dot(user_mat, movie_mat)
+print(preds)
+
+# Replace each of the comments below with the correct values
+num_ratings = np.count_nonzero(~np.isnan(first_1000_users))
+print("The number of actual ratings in the first_1000_users is {}.".format(num_ratings))
+print()
+
+# How many ratings did we make for user-movie pairs that didn't actually have ratings
+ratings_for_missing = first_1000_users.shape[0]*first_1000_users.shape[1] - num_ratings
+print("The number of ratings made for user-movie pairs that didn't have ratings is {}".format(ratings_for_missing))
+
+# Test your results against the solution
+assert num_ratings == 10852, "Oops!  The number of actual ratings doesn't quite look right."
+assert ratings_for_missing == 31234148, "Oops!  The number of movie-user pairs that you made ratings for that didn't actually have ratings doesn't look right."
+
+# Make sure you made predictions on all the missing user-movie pairs
+preds = np.dot(user_mat, movie_mat)
+assert np.isnan(preds).sum() == 0
+print("Nice job!  Looks like you have predictions made for all the missing user-movie pairs! But I still have one question... How good are they?")
 
 
 
