@@ -3,3 +3,5 @@ movies_clean.csv
 reviews_clean.csv
 temp.py
 dists.p
+movie_matrix
+user_matrix
