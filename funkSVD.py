@@ -142,7 +142,36 @@ assert np.isnan(preds).sum() == 0
 print("Nice job!  Looks like you have predictions made for all the missing user-movie pairs! But I still have one question... How good are they?")
 
 
+# my own twist to the funk svd function
+def FunkSVD(ratings_mat, latent_features=4, learning_rate=0.0001, iters=100):
 
+    n_users = ratings_mat.shape[0]
+    n_movies = ratings_mat.shape[1]
+    num_rating = np.count_nonzero(~np.isnan(ratings_mat))
+
+    user_mat = np.random.rand(n_users, latent_features)
+    movie_mat = np.random.rand(latent_features, n_movies)
+
+    for iter in range(iters):
+        sse = 0
+        for i in range(n_users):
+            for j in range(n_movies):
+                if np.isnan(ratings_mat[i,j]) == False:
+                    actual_rating = ratings_mat[i,j]
+                    predicted_rating = np.dot(user_mat[i,:], movie_mat[:,j])
+
+                    sse += (actual_rating - predicted_rating)**2
+                    error = actual_rating - predicted_rating
+
+                    # for lat in range(latent_features):
+                    #     user_mat[i, lat] += (learning_rate * 2 * error * movie_mat[lat, j])
+                    #     movie_mat[lat, j] += (learning_rate * 2 * error * user_mat[i, lat])
+
+                    user_mat[i, :] += (learning_rate * 2 * error * movie_mat[:, j])
+                    movie_mat[:, j] += (learning_rate * 2 * error * user_mat[i, :])
+
+        print('the mean squared error on iteration: {} is: {}'.format(iter+1, sse/num_rating))
+    return user_mat, movie_mat
 
 
 
