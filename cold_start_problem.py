@@ -1,3 +1,4 @@
+# Cold Start Problem
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -28,8 +29,7 @@ def create_train_test(reviews, order_by, training_size, testing_size):
     '''
     reviews_new = reviews.sort_values(order_by)
     training_df = reviews_new.head(training_size)
-    validation_df = reviews_new.iloc[
-                    training_size:training_size + testing_size]
+    validation_df = reviews_new.iloc[training_size:training_size + testing_size]
 
     return training_df, validation_df
 
@@ -58,28 +58,26 @@ def predict_rating(user_matrix, movie_matrix, user_id, movie_id):
 
     return pred
 
-
 # Use our function to create training and test datasets
-train_df, val_df = create_train_test(reviews, 'date', 8000, 2000)
+train_df, val_df = create_train_test(reviews, 'timestamp', 8000, 2000)
 
 # Create user-by-item matrix - this will keep track of order of users and movies in u and v
-train_user_item = train_df[['user_id', 'movie_id', 'rating', 'timestamp']]
-train_data_df = train_user_item.groupby(['user_id', 'movie_id'])['rating'].max().unstack()
+train_user_item = train_df[['user_id','movie_id','rating','timestamp']]
+train_data_df = train_user_item.groupby(['user_id','movie_id'])['rating'].max().unstack()
 train_data_np = np.array(train_data_df)
 
 # Read in user and movie matrices
-user_file = open(data_dir + "user_matrix", 'rb')
+user_file = open(data_dir+"user_matrix", "rb")
 user_mat = pickle.load(user_file)
 user_file.close()
 
-movie_file = open(data_dir + "movie_matrix", 'rb')
+movie_file = open(data_dir+"movie_matrix", "rb")
 movie_mat = pickle.load(movie_file)
 movie_file.close()
 
-# Validating Predictions
-# Unfortunately, you weren't able to make predictions on every user-movie combination in the test set, as some of these users or movies were new.
-# However, we can validate your predictions for the user-movie pairs that do exist in the user_mat and movie_mat matrices.
+print(val_df.head())
 
+# Validation Predictions
 def validation_comparison(val_df, user_mat=user_mat, movie_mat=movie_mat):
     '''
     INPUT:
@@ -95,57 +93,56 @@ def validation_comparison(val_df, user_mat=user_mat, movie_mat=movie_mat):
     acts - (list) actual values for any user-movie pairs where it was possible to make a prediction
     '''
 
-    val_users = val_df.user_id.values
-    val_movies = val_df.movie_id.values
-    val_ratings = val_df.rating.values
+    val_user_id = val_df['user_id'].values
+    val_movie_id = val_df['movie_id'].values
+    val_rating = val_df['rating'].values
 
+    preds, acts = [],[]
+    n_rated = 0
     sse = 0
-    num_rated = 0
-    preds, acts = [], []
-    actual_v_pred = np.zeros((10, 10))
-    for idx in range(len(val_users)):
+    actual_v_pred = np.zeros((10,10))
+    for idx in range(len(val_user_id)):
         try:
-            pred = predict_rating(user_mat, movie_mat, val_users[idx], val_movies[idx])
-            sse += (val_ratings[idx] - pred)**2
-            num_rated += 1
+            pred = predict_rating(user_mat, movie_mat, val_user_id[idx], val_movie_id[idx])
+            n_rated += 1
+            sse += (val_rating[idx] - pred)**2
             preds.append(pred)
-            acts.append(val_ratings[idx])
-            actual_v_pred[11 - int(val_ratings[idx] - 1), int(round(pred) - 1)] += 1
+            acts.append(val_rating[idx])
+            actual_v_pred[11 - int(val_rating[idx] - 1), int(round(pred)-1)] += 1
         except:
             continue
 
-    rmse = np.sqrt(sse/num_rated)
-    perc_rated = num_rated / len(val_users)
+    perc_rated = n_rated/len(val_user_id)
+    rmse = np.sqrt(sse/n_rated)
     return rmse, perc_rated, actual_v_pred, preds, acts
 
+# How well did we do?
 rmse, perc_rated, actual_v_pred, preds, acts = validation_comparison(val_df)
 print(rmse, perc_rated)
-sns.heatmap(actual_v_pred)
-plt.xticks(ticks = np.arange(10), labels = np.arange(1, 11))
-plt.yticks(ticks = np.arange(10), labels = np.arange(1, 11))
-plt.xlabel('Predicted Values')
-plt.ylabel('Actual Values')
-plt.title('Actual vs. Predicted Values')
+# sns.heatmap(actual_v_pred)
+# plt.xticks(np.arange(10), np.arange(1,11));
+# plt.yticks(np.arange(10), np.arange(1,11));
+# plt.xlabel("Predicted Values");
+# plt.ylabel("Actual Values");
+# plt.title("Actual vs. Predicted Values");
 
-plt.figure(figsize=(8,8))
-plt.hist(acts, normed=True, alpha=.5, label='actual');
-plt.hist(preds, normed=True, alpha=.5, label='predicted');
-plt.legend(loc=2, prop={'size': 15});
-plt.xlabel('Rating');
-plt.title('Predicted vs. Actual Rating');
+# plt.figure(figsize=(8,8))
+# plt.hist(acts, normed=True, alpha=.5, label='actual');
+# plt.hist(preds, normed=True, alpha=.5, label='predicted');
+# plt.legend(loc=2, prop={'size': 15});
+# plt.xlabel('Rating');
+# plt.title('Predicted vs. Actual Rating');
 
 # From the above, this can be calculated as follows:
 print("Number not rated {}".format(int(len(val_df['rating'])*(1-perc_rated))))
 print("Number rated {}.".format(int(len(val_df['rating'])*perc_rated)))
 
-# Subset so movie_content is only using the dummy variables for each genre and the 3 century based year dummy columns
-movie_content = np.array(movies.iloc[:, 4:])
+### Content Based For New Movies
+movie_content = movies.iloc[:,4:]
+print(movie_content.shape)
+dot_prod_movies = np.dot(movie_content, np.transpose(movie_content))
 
-# Take the dot product to obtain a movie x movie matrix of similarities
-dot_prod_movies = movie_content.dot(np.transpose(movie_content))
-
-
-def find_similar_movies(movie_id):
+def find_similar_movies(movie_id): # just using the content of the movie.
     '''
     INPUT
     movie_id - a movie_id
@@ -153,17 +150,16 @@ def find_similar_movies(movie_id):
     similar_movies - an array of the most similar movies by title
     '''
     # find the row of each movie id
-    movie_idx = np.where(movies['movie_id'] == movie_id)[0][0]
+    idx = np.where(movies['movie_id'] == movie_id)[0][0]
 
     # find the most similar movie indices - to start I said they need to be the same for all content
-    similar_idxs = \
-    np.where(dot_prod_movies[movie_idx] == np.max(dot_prod_movies[movie_idx]))[
-        0]
+    similar_movie_idx = np.where(dot_prod_movies[idx,:] == max(dot_prod_movies[idx,:]))[0]
 
     # pull the movie titles based on the indices
-    similar_movies = np.array(movies.iloc[similar_idxs,]['movie'])
+    similar_movies = movies[movies.index.isin(similar_movie_idx)]['movie'].values
 
     return similar_movies
+
 
 
 def get_movie_names(movie_ids):
@@ -178,6 +174,20 @@ def get_movie_names(movie_ids):
 
     return movie_lst
 
+def get_movie_ids(movie_names):
+    '''
+    INPUT
+    movie_ids - a list of movie names
+    OUTPUT
+    movie_ids - a list of movie ids associated with the movie_names
+
+    '''
+    movie_ids = list(movies[movies['movie'].isin(movie_names)]['movie_id'])
+
+    return movie_ids
+
+
+### Rank Based For New Users
 def create_ranked_df(movies, reviews):
     '''
     INPUT
@@ -197,16 +207,14 @@ def create_ranked_df(movies, reviews):
     last_rating.columns = ['last_rating']
 
     # Add Dates
-    rating_count_df = pd.DataFrame(
-        {'avg_rating': avg_ratings, 'num_ratings': num_ratings})
+    rating_count_df = pd.DataFrame({'avg_rating': avg_ratings, 'num_ratings': num_ratings})
     rating_count_df = rating_count_df.join(last_rating)
 
     # merge with the movies dataset
     movie_recs = movies.set_index('movie_id').join(rating_count_df)
 
     # sort by top avg rating and number of ratings
-    ranked_movies = movie_recs.sort_values(
-        ['avg_rating', 'num_ratings', 'last_rating'], ascending=False)
+    ranked_movies = movie_recs.sort_values(['avg_rating', 'num_ratings', 'last_rating'], ascending=False)
 
     # for edge cases - subset the movie list to those with only 5 or more reviews
     ranked_movies = ranked_movies[ranked_movies['num_ratings'] > 4]
@@ -228,6 +236,53 @@ def popular_recommendations(user_id, n_top, ranked_movies):
     top_movies = list(ranked_movies['movie'][:n_top])
 
     return top_movies
+
+
+def make_recommendations(_id, _id_type='movie', train_data=train_data_df,
+                         train_df=train_df, movies=movies, rec_num=5, user_mat=user_mat):
+    '''
+    INPUT:
+    _id - either a user or movie id (int)
+    _id_type - "movie" or "user" (str)
+    train_data - dataframe of data as user-movie matrix
+    train_df - dataframe of training data reviews
+    movies - movies df
+    rec_num - number of recommendations to return (int)
+    user_mat - the U matrix of matrix factorization
+    movie_mat - the V matrix of matrix factorization
+
+    OUTPUT:
+    rec_ids - (array) a list or numpy array of recommended movies by id
+    rec_names - (array) a list or numpy array of recommended movies by name
+    '''
+
+    rec_ids = []
+    if _id_type == 'user':
+        movie_id_rating_tuple = []
+        seen_movie_ids = reviews[reviews['user_id'] == _id]['movie_id']
+
+        if train_data.index.isin([_id]).any():
+            for movie_id in train_data.columns:
+                if ~(seen_movie_ids.isin([movie_id]).any()):
+                    try:
+                        pred = predict_rating(user_mat, movie_mat, _id, movie_id)
+                        movie_id_rating_tuple.append((movie_id, pred))
+                    except:
+                        continue
+            top_recs_list = sorted(movie_id_rating_tuple, key=lambda x: x[1], reverse=True)
+            for idx in range(rec_num):
+                rec_ids.append(top_recs_list[idx][0])
+            rec_names = get_movie_names(rec_ids)
+        else:
+            ranked_movies = create_ranked_df(movies, train_df)
+            rec_names = popular_recommendations(_id, rec_num, ranked_movies)
+            rec_ids = get_movie_ids(rec_names)
+    elif _id_type == 'movie':
+        rec_names = find_similar_movies(_id)[:5]
+        rec_ids = get_movie_ids(rec_names)
+    return rec_ids, rec_names
+
+make_recommendations(4099, 'movie')
 
 
 
